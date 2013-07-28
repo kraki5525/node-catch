@@ -1,0 +1,26 @@
+{
+  "name": "node-catch",
+  "description": "A node.js powered podcast downloader.",
+  "keywords": [
+    "cli",
+    "podcast"
+  ],
+  "version": "0.0.1",
+  "author": "kraki5525@gmail.com",
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/kraki5525/node-catch.git"
+  },
+  "preferGlobal": true,
+  "dependencies": {
+    "commander": "~2.0.0",
+    "inquirer": "~0.2.2",
+    "nedb": "~0.8.4",
+    "request": "~2.25.0",
+    "feedparser": "~0.16.1"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">= 0.10.12"
+  }
+}
