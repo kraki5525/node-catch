@@ -8,6 +8,7 @@ lib-cov
 *.gz
 
 node_modules/
+data/
 
 pids
 logs

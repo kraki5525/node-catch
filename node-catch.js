@@ -3,13 +3,19 @@ var program = require('commander'),
     inquirer = require('inquirer'),
     Datastore = require('nedb'),
     db = new Datastore({
-        //filename: 'node-catch.data',
+        filename: 'data/node-catch.data',
         autoload: true
     });
 
 program.version('0.0.1');
 
-db.insert({name: 'test', url: 'http://www.google.com'});
+program
+    .command('add <url>')
+    .description('Add a podcast to the list of podcasts subscribed to.')
+    .action(function(url) {
+        db.insert({name: "podcast", url: url});
+    });
+
 program
     .command('list')
     .description('List the podcasts you are currently subscribed to.')
