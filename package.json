@@ -17,7 +17,8 @@
     "inquirer": "~0.2.2",
     "nedb": "~0.8.4",
     "request": "~2.25.0",
-    "feedparser": "~0.16.1"
+    "feedparser": "~0.16.1",
+    "underscore": "~1.5.1"
   },
   "devDependencies": {},
   "engines": {
