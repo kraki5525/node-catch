@@ -1,6 +1,8 @@
 var program = require('commander'),
     _ = require('underscore'),
     inquirer = require('inquirer'),
+    request = require('request'),
+    FeedParser = require('feedparser'),
     Datastore = require('nedb'),
     db = new Datastore({
         filename: 'data/node-catch.data',
@@ -13,7 +15,7 @@ program
     .command('add <url>')
     .description('Add a podcast to the list of podcasts subscribed to.')
     .action(function(url) {
-        db.insert({name: "podcast", url: url});
+        db.insert({url: url});
     });
 
 program
@@ -36,7 +38,6 @@ program
                             }),
                         query = { $or: ors};
 
-                    console.log(query);
                     db.remove(query, {multi: true});
                 }
             );    
@@ -58,10 +59,37 @@ program
                 'message': 'List of subscribed podcasts',
                 choices: choices },
                 function (answer) {
-                    console.log(answer);
                 }
             );
         });
+    });
+
+program
+    .command('refresh')
+    .description('Download new podcasts.')
+    .action(function() {
+        db.find({}, function(err, docs) {
+            var urls = _.map(docs, function(d) {
+                return d.url;
+            });
+
+            console.log(urls[0]);
+            request(urls[0])
+                .pipe(new FeedParser())
+                .on('error', function (error) {
+                    console.error(error);
+                })
+                .on('meta', function (meta) {
+                    console.log('===== %s =====', meta.title);
+                })
+                .on('readable', function() {
+                    var stream = this, item;
+                    while (item = stream.read()) {
+                      console.log('Got article: %s', item.title || item.description);
+                      console.log(item.enclosures);
+                    }
+                });
+        });    
     });
 
 program.parse(process.argv);
