@@ -1,8 +1,7 @@
 var program = require('commander'),
     _ = require('underscore'),
     inquirer = require('inquirer'),
-    request = require('request'),
-    FeedParser = require('feedparser'),
+    Queue = require('forkqueue'),
     Datastore = require('nedb'),
     db = new Datastore({
         filename: 'data/node-catch.data',
@@ -69,26 +68,24 @@ program
     .description('Download new podcasts.')
     .action(function() {
         db.find({}, function(err, docs) {
-            var urls = _.map(docs, function(d) {
-                return d.url;
+            var queue = new Queue(4, 'worker.js'),
+                urls = _.map(docs, function(d) {
+                    return d.url;
+                });
+
+            queue
+            .on('error', function(err) {
+                console.log(err);
+            })
+            .on('msg', function(value) {
+                console.log(value);
             });
 
-            console.log(urls[0]);
-            request(urls[0])
-                .pipe(new FeedParser())
-                .on('error', function (error) {
-                    console.error(error);
-                })
-                .on('meta', function (meta) {
-                    console.log('===== %s =====', meta.title);
-                })
-                .on('readable', function() {
-                    var stream = this, item;
-                    while (item = stream.read()) {
-                      console.log('Got article: %s', item.title || item.description);
-                      console.log(item.enclosures);
-                    }
-                });
+            queue.concat(urls);
+
+            queue.end(function() {
+                console.log('end of queue')
+            });
         });    
     });
 
