@@ -1,11 +1,24 @@
 var request = require('request'),
-    FeedParser = require('feedparser');
+    FeedParser = require('feedparser'),
+    url = require('url'),
+    fs = require('fs');
 
-process.on('message', function(url) {
-    console.log(url);
-    console.log(process.pid);
+process.on('message', function(fileInfo) {
+    var file = fileInfo.url,
+        type = fileInfo.type;
 
-    request(url)
+    if (type == 'feed') {
+        fetchFeed(file);
+    }
+    else {
+        fetchFile(file);
+    }
+});
+
+process.send('next');
+
+function fetchFeed(file) {
+    request(file)
         .pipe(new FeedParser())
         .on('error', function (error) {
             console.error(error);
@@ -16,13 +29,22 @@ process.on('message', function(url) {
         .on('readable', function() {
             var stream = this, item;
             while (item = stream.read()) {
-              //console.log('Got article: %s', item.title || item.description);
-              //console.log(item.enclosures);
+                for (var i = 0; i < item.enclosures.length; i++) {
+                    process.send(item.enclosures[i]);
+                }
             }
         })
         .on('end', function() {
             process.send('next');
         });
-});
+}
 
-process.send('next');
+function fetchFile(file) {
+    request(file)
+        .on('data', function(data) {
+            console.log(typeof data);
+        })
+        .on('end', function() {
+            process.send('next');
+        });
+}

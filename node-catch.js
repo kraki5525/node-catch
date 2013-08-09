@@ -69,22 +69,45 @@ program
     .action(function() {
         db.find({}, function(err, docs) {
             var queue = new Queue(4, 'worker.js'),
+                done = false,
+                files = [];
                 urls = _.map(docs, function(d) {
-                    return d.url;
+                    return {type: 'feed', url: d.url};
                 });
 
             queue
             .on('error', function(err) {
+                if (done)
+                    return;
+
                 console.log(err);
             })
             .on('msg', function(value) {
-                console.log(value);
+                files.push(value.url);
             });
 
             queue.concat(urls);
 
             queue.end(function() {
-                console.log('end of queue')
+                done = true;
+
+                var q = new Queue(4, 'worker.js'),
+                    f = _.map(files, function(file) {
+                        return {type: 'file', url: file};
+                    });
+                q
+                    .on('error', function(err) {
+                        console.log(err);
+                    })
+                    .on('msg', function(value) {
+                        console.log(value);   
+                    });
+
+                q.concat(f);
+
+                q.end(function() {
+                    console.log('done'); 
+                });
             });
         });    
     });
