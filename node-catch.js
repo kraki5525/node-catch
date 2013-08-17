@@ -92,11 +92,15 @@ program
                 done = true;
 
                 var q = new Queue(4, 'worker.js'),
+                    done2 = false,
                     f = _.map(files, function(file) {
                         return {type: 'file', url: file};
                     });
                 q
                     .on('error', function(err) {
+                        if (done2)
+                            return;
+
                         console.log(err);
                     })
                     .on('msg', function(value) {
@@ -106,6 +110,7 @@ program
                 q.concat(f);
 
                 q.end(function() {
+                    done2 = true;
                     console.log('done'); 
                 });
             });

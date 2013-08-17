@@ -40,11 +40,12 @@ function fetchFeed(file) {
 }
 
 function fetchFile(file) {
-    request(file)
-        .on('data', function(data) {
-            console.log(typeof data);
-        })
-        .on('end', function() {
-            process.send('next');
-        });
+    var pUrl = url.parse(file),
+        fileName = pUrl.pathname.split('/').pop();
+
+        request(file)
+            .on('end', function() {
+                process.send('next');   
+            })
+            .pipe(fs.createWriteStream(fileName));
 }
