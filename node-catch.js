@@ -14,7 +14,7 @@ program
     .command('add <url>')
     .description('Add a podcast to the list of podcasts subscribed to.')
     .action(function(url) {
-        db.insert({url: url});
+        db.insert({title: "", description: "", url: url});
     });
 
 program
@@ -72,7 +72,7 @@ program
                 done = false,
                 files = [];
                 urls = _.map(docs, function(d) {
-                    return {type: 'feed', url: d.url};
+                    return {type: 'feed', object: d};
                 });
 
             queue
@@ -83,7 +83,11 @@ program
                 console.log(err);
             })
             .on('msg', function(value) {
-                files.push(value.url);
+                if (value.type == "feed") {
+                }
+                else {
+                    files.push(value.object);
+                }
             });
 
             queue.concat(urls);
@@ -94,18 +98,19 @@ program
                 var q = new Queue(4, 'worker.js'),
                     done2 = false,
                     f = _.map(files, function(file) {
-                        return {type: 'file', url: file};
+                        return {type: 'file', url: file.url};
                     });
+                console.log(f);
                 q
-                    .on('error', function(err) {
-                        if (done2)
-                            return;
+                .on('error', function(err) {
+                    if (done2)
+                        return;
 
-                        console.log(err);
-                    })
-                    .on('msg', function(value) {
-                        console.log(value);   
-                    });
+                    console.log(err);
+                })
+                .on('msg', function(value) {
+                    console.log(value);   
+                });
 
                 q.concat(f);
 
