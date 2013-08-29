@@ -14,7 +14,7 @@ program
     .command('add <url>')
     .description('Add a podcast to the list of podcasts subscribed to.')
     .action(function(url) {
-        db.insert({title: "", description: "", url: url});
+        db.insert({title: "", description: "", url: url, items: []});
     });
 
 program
@@ -84,11 +84,14 @@ program
                 console.log(err);
             })
             .on('msg', function(value) {
+
                 if (value.type == "feed") {
                     feeds[value.object._id] = value.object;
                 }
                 else {
-                    files.push(value.object);
+                    var feed = feeds[value.object._id];
+                    feed.items.push(value.object.item);
+                    files.push(value.object.enclosure.url);
                 }
             });
 

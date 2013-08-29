@@ -36,7 +36,7 @@ function fetchFeed(object) {
             var stream = this, item;
             while (item = stream.read()) {
                 for (var i = 0; i < item.enclosures.length; i++) {
-                    process.send({type: "file", object: {_id: object._id, enclosure: item.enclosures[i]}});
+                    process.send({type: "file", object: {_id: object._id, item: item, enclosure: item.enclosures[i]}});
                 }
             }
         })
