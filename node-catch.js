@@ -70,7 +70,8 @@ program
         db.find({}, function(err, docs) {
             var queue = new Queue(4, 'worker.js'),
                 done = false,
-                files = [];
+                files = [],
+                feeds = {},
                 urls = _.map(docs, function(d) {
                     return {type: 'feed', object: d};
                 });
@@ -84,11 +85,13 @@ program
             })
             .on('msg', function(value) {
                 if (value.type == "feed") {
+                    feeds[value.object._id] = value.object;
                 }
                 else {
                     files.push(value.object);
                 }
             });
+
 
             queue.concat(urls);
 
@@ -98,9 +101,15 @@ program
                 var q = new Queue(4, 'worker.js'),
                     done2 = false,
                     f = _.map(files, function(file) {
-                        return {type: 'file', url: file.url};
+                        return {type: 'file', object:file};
                     });
-                console.log(f);
+
+                for (var id in feeds) {
+                    if (feeds.hasOwnProperty(id)) {
+                        db.update({_id: id}, feeds[id]);
+                    }
+                }
+
                 q
                 .on('error', function(err) {
                     if (done2)

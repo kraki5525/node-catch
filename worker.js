@@ -26,24 +26,21 @@ function fetchFeed(object) {
             console.error(error);
         })
         .on('meta', function (meta) {
-            var title = meta.title,
-                description = meta.description;
+            object.title = meta.title;
+            object.description = meta.description;
 
-            object.title = title;
-            object.description = description;
-
+            process.send({type: "feed", object: object});
             console.log('===== %s =====', meta.title);
         })
         .on('readable', function() {
             var stream = this, item;
             while (item = stream.read()) {
                 for (var i = 0; i < item.enclosures.length; i++) {
-                    process.send({type: "file", object: item.enclosures[i]});
+                    process.send({type: "file", object: {_id: object._id, enclosure: item.enclosures[i]}});
                 }
             }
         })
         .on('end', function() {
-            process.send({type: "feed", object: object});
             process.send('next');
         });
 }
