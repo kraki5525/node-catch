@@ -1,6 +1,14 @@
 var _ = require('underscore'),
     inquirer = require('inquirer'),
-    Queue = require('forkqueue');
+    Orchestrator = require('orchestrator'),
+    orchestrator = new Orchestrator(),
+    Chance = require('chance'),
+    chance = new Chance(),
+    FeedParser = require('feedparser'),
+    request = require('request'),
+    fs = require('fs'),
+    Q = require('q');
+    //Queue = require('forkqueue');
 
 var configureFunction = function(program, db) {
     program
@@ -8,6 +16,25 @@ var configureFunction = function(program, db) {
         .description('Download new podcasts.')
         .action(function() {
             db.find({}, function(err, docs) {
+
+                var tasks = _.chain(docs)
+                            .map(function(doc) {
+                                    var name = chance.word();
+
+                                    orchestrator.add(name, makeFeedTask(doc));
+                                    return name;})
+                            .toArray()
+                            .value();
+
+                orchestrator.start(tasks, function (err) {
+                    console.log(docs);
+                    console.log(err);
+                    _.each(docs, function(doc) {
+                        db.update({_id: doc._id}, doc);
+                    })
+                });
+
+                /*
                 var queue = new Queue(4, 'worker.js'),
                     done = false,
                     files = [],
@@ -71,8 +98,47 @@ var configureFunction = function(program, db) {
                         console.log('done'); 
                     });
                 });
+                */
             });    
         });
 };
+
+function makeFeedTask(doc) {
+    return function() {
+        var deferred = Q.defer();
+
+        request(doc.url)
+//        .on('response', function() {
+//            console.log('downloading ' + doc.url);
+//        })
+//        .on('end', function() {
+//            console.log('downloaded ' + doc.url);
+//        })
+        .pipe(new FeedParser())
+        .on('error', function (error) {
+            console.error(error);
+            deferred.resolve();
+        })
+        .on('meta', function (meta) {
+            doc.title = meta.title;
+            doc.description = meta.description;
+            console.log('===== %s =====', meta.title);
+        })
+        .on('readable', function() {
+            var stream = this, item;
+            while (item = stream.read()) {
+                for (var i = 0; i < item.enclosures.length; i++) {
+                    console.log(item.enclosures[i]);
+                    //process.send({type: "file", object: {_id: object._id, item: item, enclosure: item.enclosures[i]}});
+                }
+            }
+        })
+        .on('end', function() {
+            deferred.resolve();
+        });
+
+        return deferred.promise;
+    }
+}
 
 exports.configureCommand = configureFunction;
