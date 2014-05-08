@@ -16,23 +16,40 @@ var configureFunction = function(program, db) {
         .description('Download new podcasts.')
         .action(function() {
             db.find({}, function(err, docs) {
-
-                var tasks = _.chain(docs)
+                var feedOrchestrator = new Orchestrator();
+                var filesOrchestrator = new Orchestrator();
+                var feedTasks = _.chain(docs)
                             .map(function(doc) {
                                     var name = chance.word();
 
-                                    orchestrator.add(name, makeFeedTask(doc));
+                                    feedOrchestrator.add(name, makeFeedTask(doc));
                                     return name;})
                             .toArray()
                             .value();
 
-                orchestrator.start(tasks, function (err) {
-                    console.log(docs);
-                    console.log(err);
+                var feedOrchestratorStart = function(tasksToDo) {
+                    var deferred = Q.defer();
+                    feedOrchestrator.start(tasksToDo, deferred.resolve);
+                    return deferred.promise;
+                };
+
+                feedOrchestratorStart(feedTasks)
+                .done(function() {
                     _.each(docs, function(doc) {
-                        db.update({_id: doc._id}, doc);
-                    })
+                        console.log(doc);
+                        _.each(doc.items, function(item) {
+                            console.log(item);
+                        });
+                    });
                 });
+
+//                orchestrator.start(tasks, function (err) {
+//                    console.log(docs);
+//                    console.log(err);
+//                    _.each(docs, function(doc) {
+//                        db.update({_id: doc._id}, doc);
+//                    })
+//                });
 
                 /*
                 var queue = new Queue(4, 'worker.js'),
@@ -108,12 +125,6 @@ function makeFeedTask(doc) {
         var deferred = Q.defer();
 
         request(doc.url)
-//        .on('response', function() {
-//            console.log('downloading ' + doc.url);
-//        })
-//        .on('end', function() {
-//            console.log('downloaded ' + doc.url);
-//        })
         .pipe(new FeedParser())
         .on('error', function (error) {
             console.error(error);
@@ -125,10 +136,15 @@ function makeFeedTask(doc) {
             console.log('===== %s =====', meta.title);
         })
         .on('readable', function() {
-            var stream = this, item;
+            var stream = this, 
+                item;
             while (item = stream.read()) {
                 for (var i = 0; i < item.enclosures.length; i++) {
-                    console.log(item.enclosures[i]);
+                    var docItem = createDocItem(item);
+
+                    doc.items.push(docItem);
+
+                    //console.log(item);
                     //process.send({type: "file", object: {_id: object._id, item: item, enclosure: item.enclosures[i]}});
                 }
             }
@@ -139,6 +155,20 @@ function makeFeedTask(doc) {
 
         return deferred.promise;
     }
+}
+
+function createDocItem(item) {
+    var docItem = {};
+
+    docItem.title = item.title;
+    docItem.description = item.description;
+    docItem.date = item.date;
+    docItem.files = _.chain(item.enclosures)
+                    .map(function(enclosure) { return enclosure.url; })
+                    .toArray()
+                    .value();
+
+    return docItem;
 }
 
 exports.configureCommand = configureFunction;
