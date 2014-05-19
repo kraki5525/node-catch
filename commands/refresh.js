@@ -8,7 +8,6 @@ var _ = require('underscore'),
     request = require('request'),
     fs = require('fs'),
     Q = require('q');
-    //Queue = require('forkqueue');
 
 var configureFunction = function(program, db) {
     program
@@ -17,6 +16,7 @@ var configureFunction = function(program, db) {
         .action(function() {
             var dbFind = Q.denodeify(db.find.bind(db));
             var feedOrchestrator = new Orchestrator();
+            var fileOrchestrator = new Orchestrator();
             var feeds;
 
             dbFind({})
@@ -42,9 +42,10 @@ var configureFunction = function(program, db) {
                 });
             })
             .then(function() {
-                db.find({"items.status" : "none"}, function(err, feeds) {
-                    console.log(feeds);
-                });
+                return dbFind({"items.status": "none"});
+            })
+            .then(function (feeds) {
+                console.log(feeds);
             });
         });
 };
