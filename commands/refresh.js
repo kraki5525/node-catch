@@ -34,88 +34,17 @@ var configureFunction = function(program, db) {
                 };
 
                 feedOrchestratorStart(feedTasks)
-                .done(function() {
+                .then(function() {
                     _.each(docs, function(doc) {
-                        console.log(doc);
-                        _.each(doc.items, function(item) {
-                            console.log(item);
-                        });
+                        db.update({_id: doc._id}, doc);
                     });
-                });
-
-//                orchestrator.start(tasks, function (err) {
-//                    console.log(docs);
-//                    console.log(err);
-//                    _.each(docs, function(doc) {
-//                        db.update({_id: doc._id}, doc);
-//                    })
-//                });
-
-                /*
-                var queue = new Queue(4, 'worker.js'),
-                    done = false,
-                    files = [],
-                    feeds = {},
-                    urls = _.map(docs, function(d) {
-                        return {type: 'feed', object: d};
-                    });
-
-                queue
-                .on('error', function(err) {
-                    if (done)
-                        return;
-
-                    console.log(err);
                 })
-                .on('msg', function(value) {
-
-                    if (value.type == "feed") {
-                        feeds[value.object._id] = value.object;
-                    }
-                    else {
-                        var feed = feeds[value.object._id];
-                        feed.items.push(value.object.item);
-                        files.push(value.object.enclosure.url);
-                    }
-                });
-
-
-                queue.concat(urls);
-
-                queue.end(function() {
-                    done = true;
-
-                    var q = new Queue(4, 'worker.js'),
-                        done2 = false,
-                        f = _.map(files, function(file) {
-                            return {type: 'file', object:file};
-                        });
-
-                    for (var id in feeds) {
-                        if (feeds.hasOwnProperty(id)) {
-                            db.update({_id: id}, feeds[id]);
-                        }
-                    }
-
-                    q
-                    .on('error', function(err) {
-                        if (done2)
-                            return;
-
+                .then(function() {
+                    db.find({"items.status" : "none"}, function(err, docs) {
                         console.log(err);
-                    })
-                    .on('msg', function(value) {
-                        console.log(value);   
-                    });
-
-                    q.concat(f);
-
-                    q.end(function() {
-                        done2 = true;
-                        console.log('done'); 
+                        console.log(docs);
                     });
                 });
-                */
             });    
         });
 };
@@ -140,12 +69,10 @@ function makeFeedTask(doc) {
                 item;
             while (item = stream.read()) {
                 for (var i = 0; i < item.enclosures.length; i++) {
-                    var docItem = createDocItem(item);
+                    var feedItem = createDocItem(item);
 
-                    doc.items.push(docItem);
-
-                    //console.log(item);
-                    //process.send({type: "file", object: {_id: object._id, item: item, enclosure: item.enclosures[i]}});
+                    if (!itemExists(feedItem, doc))
+                        doc.items.push(feedItem);
                 }
             }
         })
@@ -163,12 +90,20 @@ function createDocItem(item) {
     docItem.title = item.title;
     docItem.description = item.description;
     docItem.date = item.date;
+    docItem.status = "none";
     docItem.files = _.chain(item.enclosures)
                     .map(function(enclosure) { return enclosure.url; })
                     .toArray()
                     .value();
 
     return docItem;
+}
+
+function itemExists(feedItem, doc) {
+    return _.some(doc.items, function(item) {
+        return (feedItem.files.length == 0) 
+                || (item.files != null && item.files.length > 0 && feedItem.files[0] == item.files[0]);
+    });
 }
 
 exports.configureCommand = configureFunction;
