@@ -15,36 +15,37 @@ var configureFunction = function(program, db) {
         .command('refresh')
         .description('Download new podcasts.')
         .action(function() {
-            db.find({}, function(err, docs) {
-                var feedOrchestrator = new Orchestrator();
-                var filesOrchestrator = new Orchestrator();
-                var feedTasks = _.chain(docs)
-                            .map(function(doc) {
-                                    var name = chance.word();
+            var dbFind = Q.denodeify(db.find.bind(db));
+            var feedOrchestrator = new Orchestrator();
+            var feeds;
 
-                                    feedOrchestrator.add(name, makeFeedTask(doc));
-                                    return name;})
-                            .toArray()
-                            .value();
+            dbFind({})
+            .then(function (docs) {
+                feeds = docs;
+                return _.chain(docs)
+                        .map(function(doc) {
+                                var name = chance.word();
 
-                var feedOrchestratorStart = function(tasksToDo) {
-                    var deferred = Q.defer();
-                    feedOrchestrator.start(tasksToDo, deferred.resolve);
-                    return deferred.promise;
-                };
-
-                feedOrchestratorStart(feedTasks)
-                .then(function() {
-                    _.each(docs, function(doc) {
-                        db.update({_id: doc._id}, doc);
-                    });
-                })
-                .then(function() {
-                    db.find({"items.status" : "none"}, function(err, docs) {
-                        console.log(docs);
-                    });
+                                feedOrchestrator.add(name, makeFeedTask(doc));
+                                return name;})
+                        .toArray()
+                        .value();
+            })
+            .then(function (feedTasks) {
+                var deferred = Q.defer();
+                feedOrchestrator.start(feedTasks, deferred.resolve)
+                return deferred.promise;
+            })
+            .then(function () {
+                _.each(feeds, function(feed) {
+                    db.update({_id: feed._id}, feed);
                 });
-            });    
+            })
+            .then(function() {
+                db.find({"items.status" : "none"}, function(err, feeds) {
+                    console.log(feeds);
+                });
+            });
         });
 };
 
