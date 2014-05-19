@@ -41,7 +41,6 @@ var configureFunction = function(program, db) {
                 })
                 .then(function() {
                     db.find({"items.status" : "none"}, function(err, docs) {
-                        console.log(err);
                         console.log(docs);
                     });
                 });
