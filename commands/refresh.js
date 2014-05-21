@@ -7,6 +7,7 @@ var _ = require('underscore'),
     FeedParser = require('feedparser'),
     request = require('request'),
     fs = require('fs'),
+    urlParser = require('url'),
     Q = require('q');
 
 var configureFunction = function(program, db) {
@@ -19,21 +20,26 @@ var configureFunction = function(program, db) {
             var fileOrchestrator = new Orchestrator();
             var feeds;
 
+            fileOrchestrator.on('task_err', function (e) {
+                console.log(e);
+            });
+
             dbFind({})
             .then(function (docs) {
                 feeds = docs;
                 return _.chain(docs)
                         .map(function(doc) {
-                                var name = chance.word();
+                            var name = chance.word();
 
-                                feedOrchestrator.add(name, makeFeedTask(doc));
-                                return name;})
+                            feedOrchestrator.add(name, makeFeedTask(doc));
+                            return name;
+                        })
                         .toArray()
                         .value();
             })
             .then(function (feedTasks) {
                 var deferred = Q.defer();
-                feedOrchestrator.start(feedTasks, deferred.resolve)
+                feedOrchestrator.start(feedTasks, deferred.resolve);
                 return deferred.promise;
             })
             .then(function () {
@@ -44,8 +50,37 @@ var configureFunction = function(program, db) {
             .then(function() {
                 return dbFind({"items.status": "none"});
             })
-            .then(function (feeds) {
-                console.log(feeds);
+            .then(function (feedsWithFiles) {
+                var files = _.chain(feedsWithFiles)
+                             .map(function (feed) {
+                                var items = _.where(feed.items, {status: "none"});
+                                return _.map(items, function (item) {
+                                   return {feed: feed, file: item}; 
+                                });
+                             })
+                             .toArray()
+                             .flatten()
+                             .value();
+
+                return _.chain(files)
+                        .map(function (file) {
+                            var name = chance.word();
+                            fileOrchestrator.add(name, makeFileTask(file));
+                            return name;
+                        })
+                        .toArray()
+                        .value();
+            })
+            .then(function (fileTasks) {
+                var deferred = Q.defer();
+                fileOrchestrator.start(fileTasks, deferred.resolve);
+                return deferred.promise;
+            })
+            .then(function () {
+                console.log('done');    
+            })
+            .catch(function(reason) {
+                console.log("fail: " + reason);       
             });
         });
 };
@@ -80,6 +115,21 @@ function makeFeedTask(doc) {
         .on('end', function() {
             deferred.resolve();
         });
+
+        return deferred.promise;
+    }
+}
+
+function makeFileTask(item) {
+    return function() {
+        var deferred = Q.defer();
+
+        var url = urlParser.parse(item.file.files[0]);
+        var fileName = url.pathname.split('/').pop();
+
+        request(urlParser.format(url))
+        .on('end', function() { deferred.resolve(); })
+        .pipe(fs.createWriteStream(fileName));
 
         return deferred.promise;
     }
