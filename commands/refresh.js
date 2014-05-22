@@ -8,6 +8,7 @@ var _ = require('underscore'),
     request = require('request'),
     fs = require('fs'),
     urlParser = require('url'),
+    throat = require('throat'),
     Q = require('q');
 
 var configureFunction = function(program, db) {
@@ -38,10 +39,12 @@ var configureFunction = function(program, db) {
                         .value();
             })
             .then(function (feedTasks) {
-                var deferred = Q.defer();
-                feedOrchestrator.start(feedTasks, deferred.resolve);
-                return deferred.promise;
+                return Q.all(feedTasks.map(throat(4, getFeed)));
             })
+            .then(function () {
+                console.log('done');
+            });
+            /*
             .then(function () {
                 _.each(feeds, function(feed) {
                     db.update({_id: feed._id}, feed);
@@ -82,8 +85,39 @@ var configureFunction = function(program, db) {
             .catch(function(reason) {
                 console.log("fail: " + reason);       
             });
+            */
         });
 };
+
+function getFeed(feed, callback) {
+    request(feed.url)
+    .pipe(new FeedParser())
+    .on('error', function (error) {
+        console.error(error);
+        callback(error, null);
+    })
+    .on('meta', function (meta) {
+        console.log("done");
+        feed.title = meta.title;
+        feed.description = meta.description;
+        console.log('===== %s =====', meta.title);
+    })
+    .on('readable', function() {
+        var stream = this, 
+            item;
+        while (item = stream.read()) {
+            for (var i = 0; i < item.enclosures.length; i++) {
+                var feedItem = createDocItem(item);
+
+                if (!itemExists(feedItem, doc))
+                    feed.items.push(feedItem);
+            }
+        }
+    })
+    .on('end', function() {
+        callback(null, feed);    
+    });
+}
 
 function makeFeedTask(doc) {
     return function() {
