@@ -8,7 +8,7 @@ var _ = require('underscore'),
     request = require('request'),
     fs = require('fs'),
     urlParser = require('url'),
-    throat = require('throat'),
+    async = require('async-q'),
     Q = require('q');
 
 var configureFunction = function(program, db) {
@@ -19,7 +19,7 @@ var configureFunction = function(program, db) {
             var dbFind = Q.denodeify(db.find.bind(db));
             var feedOrchestrator = new Orchestrator();
             var fileOrchestrator = new Orchestrator();
-            var feeds;
+            //var feeds;
 
             fileOrchestrator.on('task_err', function (e) {
                 console.log(e);
@@ -27,25 +27,21 @@ var configureFunction = function(program, db) {
 
             dbFind({})
             .then(function (docs) {
-                feeds = docs;
+                //feeds = docs;
                 return _.chain(docs)
                         .map(function(doc) {
                             var name = chance.word();
 
-                            feedOrchestrator.add(name, makeFeedTask(doc));
-                            return name;
+                            return makeFeedTask(doc);
                         })
                         .toArray()
                         .value();
             })
             .then(function (feedTasks) {
-                return Q.all(feedTasks.map(throat(4, getFeed)));
+                return async.parallelLimit(feedTasks,4);
             })
-            .then(function () {
-                console.log('done');
-            });
-            /*
-            .then(function () {
+            
+            .then(function (feeds) {
                 _.each(feeds, function(feed) {
                     db.update({_id: feed._id}, feed);
                 });
@@ -54,30 +50,22 @@ var configureFunction = function(program, db) {
                 return dbFind({"items.status": "none"});
             })
             .then(function (feedsWithFiles) {
-                var files = _.chain(feedsWithFiles)
-                             .map(function (feed) {
-                                var items = _.where(feed.items, {status: "none"});
-                                return _.map(items, function (item) {
-                                   return {feed: feed, file: item}; 
-                                });
-                             })
-                             .toArray()
-                             .flatten()
-                             .value();
-
-                return _.chain(files)
-                        .map(function (file) {
-                            var name = chance.word();
-                            fileOrchestrator.add(name, makeFileTask(file));
-                            return name;
-                        })
-                        .toArray()
-                        .value();
+                return _.chain(feedsWithFiles)
+                         .map(function (feed) {
+                            var items = _.where(feed.items, {status: "none"});
+                            return _.map(items, function (item) {
+                               return {feed: feed, file: item}; 
+                            });
+                         })
+                         .toArray()
+                         .flatten()
+                         .map(function (file) {
+                            return makeFileTask(file);
+                         })
+                         .value();
             })
             .then(function (fileTasks) {
-                var deferred = Q.defer();
-                fileOrchestrator.start(fileTasks, deferred.resolve);
-                return deferred.promise;
+                return async.parallelLimit(fileTasks,4);
             })
             .then(function () {
                 console.log('done');    
@@ -85,39 +73,8 @@ var configureFunction = function(program, db) {
             .catch(function(reason) {
                 console.log("fail: " + reason);       
             });
-            */
         });
 };
-
-function getFeed(feed, callback) {
-    request(feed.url)
-    .pipe(new FeedParser())
-    .on('error', function (error) {
-        console.error(error);
-        callback(error, null);
-    })
-    .on('meta', function (meta) {
-        console.log("done");
-        feed.title = meta.title;
-        feed.description = meta.description;
-        console.log('===== %s =====', meta.title);
-    })
-    .on('readable', function() {
-        var stream = this, 
-            item;
-        while (item = stream.read()) {
-            for (var i = 0; i < item.enclosures.length; i++) {
-                var feedItem = createDocItem(item);
-
-                if (!itemExists(feedItem, doc))
-                    feed.items.push(feedItem);
-            }
-        }
-    })
-    .on('end', function() {
-        callback(null, feed);    
-    });
-}
 
 function makeFeedTask(doc) {
     return function() {
@@ -147,7 +104,7 @@ function makeFeedTask(doc) {
             }
         })
         .on('end', function() {
-            deferred.resolve();
+            deferred.resolve(doc);
         });
 
         return deferred.promise;
@@ -162,6 +119,7 @@ function makeFileTask(item) {
         var fileName = url.pathname.split('/').pop();
 
         request(urlParser.format(url))
+        .on('response', function() { console.log('downloading ' + url); })
         .on('end', function() { deferred.resolve(); })
         .pipe(fs.createWriteStream(fileName));
 
