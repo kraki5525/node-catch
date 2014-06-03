@@ -19,7 +19,7 @@ var configureFunction = function(program, db, config) {
                         .map(function(doc) {
                             var name = chance.word();
 
-                            return makeFeedTask(doc);
+                            return makeFeedTask(doc, config);
                         })
                         .toArray()
                         .value();
@@ -47,12 +47,12 @@ var configureFunction = function(program, db, config) {
                          .toArray()
                          .flatten()
                          .map(function (file) {
-                            return makeFileTask(file);
+                            return makeFileTask(file, config);
                          })
                          .value();
             })
             .then(function (fileTasks) {
-                return async.parallelLimit(fileTasks,4);
+                return async.parallelLimit(fileTasks,config.maxCurrency);
             })
             .then(function () {
                 console.log('done');    
@@ -63,7 +63,7 @@ var configureFunction = function(program, db, config) {
         });
 };
 
-function makeFeedTask(doc) {
+function makeFeedTask(doc, config) {
     return function() {
         var deferred = Q.defer();
 
@@ -98,7 +98,7 @@ function makeFeedTask(doc) {
     }
 }
 
-function makeFileTask(item) {
+function makeFileTask(item, config) {
     return function() {
         var deferred = Q.defer();
 
