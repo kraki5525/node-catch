@@ -1,4 +1,4 @@
-var configureFunction = function(program, db) {
+var configureFunction = function(program, db, config) {
     program
         .command('add <url>')
         .description('Add a podcast to the list of podcasts subscribed to.')

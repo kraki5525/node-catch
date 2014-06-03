@@ -1,9 +1,4 @@
 var _ = require('underscore'),
-    inquirer = require('inquirer'),
-    Orchestrator = require('orchestrator'),
-    orchestrator = new Orchestrator(),
-    Chance = require('chance'),
-    chance = new Chance(),
     FeedParser = require('feedparser'),
     request = require('request'),
     fs = require('fs'),
@@ -11,23 +6,15 @@ var _ = require('underscore'),
     async = require('async-q'),
     Q = require('q');
 
-var configureFunction = function(program, db) {
+var configureFunction = function(program, db, config) {
     program
         .command('refresh')
         .description('Download new podcasts.')
         .action(function() {
             var dbFind = Q.denodeify(db.find.bind(db));
-            var feedOrchestrator = new Orchestrator();
-            var fileOrchestrator = new Orchestrator();
-            //var feeds;
-
-            fileOrchestrator.on('task_err', function (e) {
-                console.log(e);
-            });
 
             dbFind({})
             .then(function (docs) {
-                //feeds = docs;
                 return _.chain(docs)
                         .map(function(doc) {
                             var name = chance.word();

@@ -1,7 +1,7 @@
 var inquirer = require('inquirer'),
     _ = require('underscore');
 
-var configureFunction = function(program, db) {
+var configureFunction = function(program, db, config) {
     program
         .command('list')
         .description('List the podcasts you are currently subscribed to.')
