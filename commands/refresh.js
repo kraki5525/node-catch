@@ -6,20 +6,18 @@ var _ = require('underscore'),
     async = require('async-q'),
     Q = require('q');
 
-var configureFunction = function(program, db, config) {
+var configureFunction = function (program, db, config) {
     program
         .command('refresh')
         .description('Download new podcasts.')
-        .action(function() {
+        .action(function () {
             var dbFind = Q.denodeify(db.find.bind(db));
 
             dbFind({})
-            .then(function (docs) {
-                return _.chain(docs)
-                        .map(function(doc) {
-                            var name = chance.word();
-
-                            return makeFeedTask(doc, config);
+            .then(function (feeds) {
+                return _.chain(feeds)
+                        .map(function(feed) {
+                            return makeFeedTask(feed, db, config);
                         })
                         .toArray()
                         .value();
@@ -27,13 +25,19 @@ var configureFunction = function(program, db, config) {
             .then(function (feedTasks) {
                 return async.parallelLimit(feedTasks,4);
             })
-            
             .then(function (feeds) {
-                _.each(feeds, function(feed) {
+                _.each(feeds, function (feed) {
                     db.update({_id: feed._id}, feed);
                 });
+
+                return feeds;
             })
-            .then(function() {
+            .then(function (feeds) {
+                _.each(feeds, function (feed) {
+                    
+                });
+            })
+            .then(function () {
                 return dbFind({"items.status": "none"});
             })
             .then(function (feedsWithFiles) {
@@ -47,7 +51,7 @@ var configureFunction = function(program, db, config) {
                          .toArray()
                          .flatten()
                          .map(function (file) {
-                            return makeFileTask(file, config);
+                            return makeFileTask(file, db, config);
                          })
                          .value();
             })
@@ -57,36 +61,36 @@ var configureFunction = function(program, db, config) {
             .then(function () {
                 console.log('done');    
             })
-            .catch(function(reason) {
+            .catch(function (reason) {
                 console.log("fail: " + reason);       
             });
         });
 };
 
-function makeFeedTask(doc, config) {
-    return function() {
+function makeFeedTask (feed, config) {
+    return function () {
         var deferred = Q.defer();
 
-        request(doc.url)
+        request(feed.url)
         .pipe(new FeedParser())
         .on('error', function (error) {
             console.error(error);
             deferred.resolve();
         })
         .on('meta', function (meta) {
-            doc.title = meta.title;
-            doc.description = meta.description;
+            feed.title = meta.title;
+            feed.description = meta.description;
             console.log('===== %s =====', meta.title);
         })
-        .on('readable', function() {
+        .on('readable', function () {
             var stream = this, 
                 item;
             while (item = stream.read()) {
                 for (var i = 0; i < item.enclosures.length; i++) {
-                    var feedItem = createDocItem(item);
+                    var feedItem = createFeedItem(item);
 
                     if (!itemExists(feedItem, doc))
-                        doc.items.push(feedItem);
+                        feed.items.push(feedItem);
                 }
             }
         })
@@ -98,7 +102,7 @@ function makeFeedTask(doc, config) {
     }
 }
 
-function makeFileTask(item, config) {
+function makeFileTask(item, db, config) {
     return function() {
         var deferred = Q.defer();
 
@@ -107,30 +111,32 @@ function makeFileTask(item, config) {
 
         request(urlParser.format(url))
         .on('response', function() { console.log('downloading ' + url); })
-        .on('end', function() { deferred.resolve(); })
+        .on('end', function() { 
+            deferred.resolve(); 
+        })
         .pipe(fs.createWriteStream(fileName));
 
         return deferred.promise;
     }
 }
 
-function createDocItem(item) {
-    var docItem = {};
+function createFeedItem(item) {
+    var feedItem = {};
 
-    docItem.title = item.title;
-    docItem.description = item.description;
-    docItem.date = item.date;
-    docItem.status = "none";
-    docItem.files = _.chain(item.enclosures)
+    feedItem.title = item.title;
+    feedItem.description = item.description;
+    feedItem.date = item.date;
+    feedItem.status = "none";
+    feedItem.files = _.chain(item.enclosures)
                     .map(function(enclosure) { return enclosure.url; })
                     .toArray()
                     .value();
 
-    return docItem;
+    return feedItem;
 }
 
-function itemExists(feedItem, doc) {
-    return _.some(doc.items, function(item) {
+function itemExists(feedItem, feed) {
+    return _.some(feed.items, function(item) {
         return (feedItem.files.length == 0) 
                 || (item.files != null && item.files.length > 0 && feedItem.files[0] == item.files[0]);
     });
