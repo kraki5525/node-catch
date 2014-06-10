@@ -29,8 +29,8 @@ var configureFunction = function (program, db, config) {
             .then(function (feeds) {
                 return _.chain(feeds)
                         .each(function (feed) {
-                            if (feed.directory == null || feed.directory == "") 
-                                feed.directory = path.join(config.storageDirectory, feed.title);
+                            if (feed.folder == null || feed.folder == "") 
+                                feed.folder = path.join(config.storageDirectory, feed.title);
                         })
                         .value();
             })
