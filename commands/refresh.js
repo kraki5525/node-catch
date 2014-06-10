@@ -2,6 +2,7 @@ var _ = require('underscore'),
     FeedParser = require('feedparser'),
     request = require('request'),
     fs = require('fs'),
+    path = require('path'),
     urlParser = require('url'),
     async = require('async-q'),
     Q = require('q');
@@ -26,15 +27,22 @@ var configureFunction = function (program, db, config) {
                 return async.parallelLimit(feedTasks,4);
             })
             .then(function (feeds) {
-                _.each(feeds, function (feed) {
-                    db.update({_id: feed._id}, feed);
-                });
-
-                return feeds;
+                return _.chain(feeds)
+                        .each(function (feed) {
+                            if (feed.directory == null || feed.directory == "") 
+                                feed.directory = path.join(config.storageDirectory, feed.title);
+                        })
+                        .value();
             })
             .then(function (feeds) {
+                return Q.all(feeds.map(function (feed) {
+                    return makeDirectoryTask(feed);
+                }));
+            })
+            .then(function (feeds) {
+                console.log(feeds);
                 _.each(feeds, function (feed) {
-                    
+                    db.update({_id: feed._id}, feed);
                 });
             })
             .then(function () {
@@ -50,8 +58,12 @@ var configureFunction = function (program, db, config) {
                          })
                          .toArray()
                          .flatten()
-                         .map(function (file) {
-                            return makeFileTask(file, db, config);
+                         .value();
+            })
+            .then(function (feedFiles) {
+               return _.chain(feedFiles)
+                         .map(function (feedFile) {
+                            return makeFileTask(feedFile, db, config);
                          })
                          .value();
             })
@@ -89,13 +101,13 @@ function makeFeedTask (feed, config) {
                 for (var i = 0; i < item.enclosures.length; i++) {
                     var feedItem = createFeedItem(item);
 
-                    if (!itemExists(feedItem, doc))
+                    if (!itemExists(feedItem, feed))
                         feed.items.push(feedItem);
                 }
             }
         })
         .on('end', function() {
-            deferred.resolve(doc);
+            deferred.resolve(feed);
         });
 
         return deferred.promise;
@@ -118,6 +130,31 @@ function makeFileTask(item, db, config) {
 
         return deferred.promise;
     }
+}
+
+function makeDirectoryTask(feed) {
+    return function() {
+        var deferred = Q.defer();
+
+        fs.readdir(feed.directory, function (err, files) {
+            if (err) {
+                fs.mkdir(feed.directory, function (err) {
+                    if (err) {
+                        console.log(err)
+                        deferred.reject(err);
+                    }
+                    else {
+                        deferred.resolve(feed);
+                    }
+                })
+            }
+            else {
+                deferred.resolve(feed);
+            }
+        });
+
+        return deferred.promise;
+    };
 }
 
 function createFeedItem(item) {

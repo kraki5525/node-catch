@@ -11,8 +11,8 @@ var configureFunction = function(program, db, config) {
 
             dbFind({})
             .then(function (feeds) {
-                var choices = _.map(feeds, function(d) { 
-                    return {name: d.name, value: d._id}; 
+                var choices = _.map(feeds, function(feed) { 
+                    return {name: feed.title, value: feed._id}; 
                 });
                 
                 inquirer.prompt({
