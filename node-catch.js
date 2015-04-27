@@ -36,8 +36,22 @@ configFind({})
         require('./commands/' + commandList[i] + '.js').configureCommand(program, db, config);
     }
 
+    fs.readdir(config.storageDirectory, function (err, files) {
+        if (err) {
+            fs.mkdir(config.storageDirectory, function (err) {
+                if (err) {
+                    console.log(err)
+                    process.exit(1);
+                }
+                program.parse(process.argv);
+            });
+        }
+        else {
+            program.parse(process.argv);
+        }
+    });
+
     program.version('0.0.1');
-    program.parse(process.argv);
 })
 .catch(function (err) {
     console.log(err);
