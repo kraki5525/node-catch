@@ -1,6 +1,6 @@
 var inquirer = require('inquirer'),
     Q = require('q'),
-    _ = require('underscore');
+    _ = require('lodash');
 
 var configureFunction = function(program, db, config) {
     program

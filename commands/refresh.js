@@ -1,4 +1,4 @@
-var _ = require('underscore'),
+var _ = require('lodash'),
     FeedParser = require('feedparser'),
     request = require('request'),
     fs = require('fs'),
@@ -13,6 +13,8 @@ var configureFunction = function (program, db, config) {
         .description('Download new podcasts.')
         .action(function () {
             var dbFind = Q.denodeify(db.find.bind(db));
+            var readDirPromise = Q.denodeify(fs.readdir);
+            var mkDirPromise = Q.denodeify(fs.mkdir);
 
             dbFind({})
             .then(function (feeds) {
@@ -32,15 +34,19 @@ var configureFunction = function (program, db, config) {
                             if (feed.folder == null || feed.folder == "") 
                                 feed.folder = path.join(config.storageDirectory, feed.title);
                         })
+                        .toArray()
                         .value();
             })
             .then(function (feeds) {
-                return Q.all(feeds.map(function (feed) {
-                    return makeDirectoryTask(feed);
-                }));
+                var dirTasks = _.chain(feeds)
+                                .map(function (feed) {
+                                    return makeDirectoryTask(feed);
+                                })
+                                .toArray()
+                                .value();
+                return async.parallelLimit(dirTasks, 4);
             })
             .then(function (feeds) {
-                console.log(feeds);
                 _.each(feeds, function (feed) {
                     db.update({_id: feed._id}, feed);
                 });
@@ -111,7 +117,7 @@ function makeFeedTask (feed, config) {
         });
 
         return deferred.promise;
-    }
+    };
 }
 
 function makeFileTask(item, db, config) {
@@ -122,23 +128,23 @@ function makeFileTask(item, db, config) {
         var fileName = url.pathname.split('/').pop();
 
         request(urlParser.format(url))
-        .on('response', function() { console.log('downloading ' + url); })
+        .on('response', function() { console.log('downloading ' + url.href); })
         .on('end', function() { 
             deferred.resolve(); 
         })
-        .pipe(fs.createWriteStream(fileName));
+        .pipe(fs.createWriteStream(path.join(item.feed.folder, fileName)));
 
         return deferred.promise;
-    }
+    };
 }
 
 function makeDirectoryTask(feed) {
     return function() {
         var deferred = Q.defer();
 
-        fs.readdir(feed.directory, function (err, files) {
+        fs.readdir(feed.folder, function (err, files) {
             if (err) {
-                fs.mkdir(feed.directory, function (err) {
+                fs.mkdir(feed.folder, function (err) {
                     if (err) {
                         console.log(err)
                         deferred.reject(err);
