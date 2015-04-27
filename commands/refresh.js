@@ -44,7 +44,7 @@ var configureFunction = function (program, db, config) {
                                 })
                                 .toArray()
                                 .value();
-                return async.parallelLimit(dirTasks, 4);
+                return async.parallelLimit(dirTasks, config.maxCurrency);
             })
             .then(function (feeds) {
                 _.each(feeds, function (feed) {
@@ -68,15 +68,19 @@ var configureFunction = function (program, db, config) {
             })
             .then(function (feedFiles) {
                return _.chain(feedFiles)
-                         .map(function (feedFile) {
-                            return makeFileTask(feedFile, db, config);
-                         })
-                         .value();
+                        .filter(function (feedFile) {
+                            return feedFile.status != 'done'
+                        })
+                        .map(function (feedFile) {
+                           return makeFileTask(feedFile, db, config);
+                        })
+                        .value();
             })
             .then(function (fileTasks) {
                 return async.parallelLimit(fileTasks,config.maxCurrency);
             })
-            .then(function () {
+            .then(function (items) {
+                console.log(items);
                 console.log('done');    
             })
             .catch(function (reason) {
@@ -130,7 +134,8 @@ function makeFileTask(item, db, config) {
         request(urlParser.format(url))
         .on('response', function() { console.log('downloading ' + url.href); })
         .on('end', function() { 
-            deferred.resolve(); 
+            item.file.status = 'done';
+            deferred.resolve(item); 
         })
         .pipe(fs.createWriteStream(path.join(item.feed.folder, fileName)));
 
