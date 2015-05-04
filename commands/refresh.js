@@ -1,11 +1,16 @@
 var _ = require('lodash'),
+    co = require('co'),
+    Promise = require('bluebird'),
+    fs = require('mz/fs'),
+
     FeedParser = require('feedparser'),
     request = require('request'),
-    fs = require('fs'),
+    //fs = require('fs'),
     path = require('path'),
     urlParser = require('url'),
-    async = require('async-q'),
-    Q = require('q');
+    //async = require('async-q'),
+    //Q = require('q');
+    ;
 
 var configureFunction = function (program, db, config) {
     program
