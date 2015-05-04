@@ -1,5 +1,6 @@
 var inquirer = require('inquirer'),
-    Q = require('q'),
+    co = require('co'),
+    Promise = require('bluebird'),
     _ = require('lodash');
 
 var configureFunction = function(program, db, config) {
@@ -7,10 +8,10 @@ var configureFunction = function(program, db, config) {
         .command('remove')
         .description('Remove a podcast or episdoes from storage')
         .action(function() {
-            var dbFind = Q.denodeify(db.find.bind(db));
+            var dbFind = Promise.promisify(db.find, db);
 
-            dbFind({})
-            .then(function (feeds) {
+            co(function * () {
+                var feeds = yield dbFind({});
                 var choices = _.map(feeds, function(feed) { 
                     return {name: feed.title, value: feed._id}; 
                 });
@@ -29,8 +30,7 @@ var configureFunction = function(program, db, config) {
                         db.remove(query, {multi: true});
                     }
                 );
-            })
-            .catch(function (err) {
+            }).catch(function (err) {
                 console.log(err);
             });
         });
