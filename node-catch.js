@@ -1,20 +1,21 @@
 "use strict"
 
 var program = require('commander'),
-    Q = require('q'),
-    fs = require('fs'),
+    Promise = require('bluebird'),
+    fs = require('mz/fs'),
+    co = require('co'),
     Datastore = require('nedb');
 
 var configDb = new Datastore({ 
     filename: 'data/node-catch.config', 
     autoload: true });
 
-var configFind = Q.denodeify(configDb.find.bind(configDb));
+var configFind = Promise.promisify(configDb.find, configDb);
 
 var commandList = ['list','remove','refresh','add'];
 
-configFind({})
-.then(function (configs) {
+co(function * () {
+    var configs = yield configFind({});
     var defaultConfig = {
         db: 'data/node-catch.data',
         maxCurrency: 4,
@@ -26,7 +27,6 @@ configFind({})
         configDb.insert(defaultConfig);
     }
 
-    
     var db = new Datastore({
         filename: config.db,
         autoload: true
@@ -36,23 +36,14 @@ configFind({})
         require('./commands/' + commandList[i] + '.js').configureCommand(program, db, config);
     }
 
-    fs.readdir(config.storageDirectory, function (err, files) {
-        if (err) {
-            fs.mkdir(config.storageDirectory, function (err) {
-                if (err) {
-                    console.log(err)
-                    process.exit(1);
-                }
-                program.parse(process.argv);
-            });
-        }
-        else {
-            program.parse(process.argv);
-        }
-    });
+    try {
+        yield fs.readdir(config.storageDirectory);
+    }
+    catch (err) {
+        yield fs.mkdir(config.storageDirectory);
+    }
 
-    program.version('0.0.1');
-})
-.catch(function (err) {
-    console.log(err);
-})
+    program.parse(process.argv);
+}).catch(function(error) {
+    console.error(error);
+});

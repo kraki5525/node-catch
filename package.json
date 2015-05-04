@@ -13,13 +13,14 @@
   },
   "preferGlobal": true,
   "dependencies": {
-    "async-q": ">=0.2.2",
+    "bluebird": "^2.9.25",
+    "co": "^4.5.4",
     "commander": ">=2.8.1",
     "feedparser": ">=1.0.1",
     "inquirer": ">=0.8.2",
     "lodash": "^3.7.0",
+    "mz": "^1.3.0",
     "nedb": ">=1.1.2",
-    "q": "^1.3.0",
     "request": ">=2.55.0"
   },
   "devDependencies": {},

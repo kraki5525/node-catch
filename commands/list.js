@@ -1,5 +1,7 @@
-var inquirer = require('inquirer'),
-    Q = require('q'),
+'use strict';
+
+var Promise = require('bluebird'),
+    co = require('co'),
     _ = require('lodash');
 
 var configureFunction = function(program, db, config) {
@@ -7,26 +9,18 @@ var configureFunction = function(program, db, config) {
         .command('list')
         .description('List the podcasts you are currently subscribed to.')
         .action(function() {
-            var dbFind = Q.denodeify(db.find.bind(db));
+            var dbFind = Promise.promisify(db.find, db);
 
-            dbFind({})
-            .then(function (feeds) {
-                var choices = _.map(feeds, function(feed) { 
-                    return {name: feed.title, value: feed._id}; 
+            co(function * () {
+                var feeds = yield dbFind({});
+
+                console.log('Podcasts:');
+                _.forEach(feeds, function(feed) {
+                    console.log(feed.title);
                 });
-                
-                inquirer.prompt({
-                    'type': 'list',
-                    'name': 'id',
-                    'message': 'List of subscribed podcasts',
-                    choices: choices },
-                    function (answer) {
-                    }
-                );
-            })
-            .catch(function (err) {
+            }).catch(function (err) {
                 console.log(err);
-            })
+            });
         });
 };
 
