@@ -15,6 +15,7 @@
   "dependencies": {
     "bluebird": "^2.9.25",
     "co": "^4.5.4",
+    "co-feedparser": "^0.16.5",
     "commander": ">=2.8.1",
     "feedparser": ">=1.0.1",
     "inquirer": ">=0.8.2",
