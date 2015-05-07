@@ -20,78 +20,48 @@ var configureFunction = function (program, db, config) {
                 var feedTasks = _.map(feeds, function(feed) { return makeFeedTask(feed, db, config); });
                 var results = yield feedTasks;
 
-                console.log(results);
-            });
+                _.each(results, function (result) {
+                    var feed = result.feed,
+                        parsedFeed = result.parsedFeed;
 
-//            .then(function (feeds) {
-//                return _.chain(feeds)
-//                        .map(function(feed) {
-//                            return makeFeedTask(feed, db, config);
-//                        })
-//                        .toArray()
-//                        .value();
-//            })
-//            .then(function (feedTasks) {
-//                return async.parallelLimit(feedTasks,4);
-//            })
-//            .then(function (feeds) {
-//                return _.chain(feeds)
-//                        .each(function (feed) {
-//                            if (feed.folder == null || feed.folder == "") 
-//                                feed.folder = path.join(config.storageDirectory, feed.title);
-//                        })
-//                        .toArray()
-//                        .value();
-//            })
-//            .then(function (feeds) {
-//                var dirTasks = _.chain(feeds)
-//                                .map(function (feed) {
-//                                    return makeDirectoryTask(feed);
-//                                })
-//                                .toArray()
-//                                .value();
-//                return async.parallelLimit(dirTasks, config.maxCurrency);
-//            })
-//            .then(function (feeds) {
-//                _.each(feeds, function (feed) {
-//                    db.update({_id: feed._id}, feed);
-//                });
-//            })
-//            .then(function () {
-//                return dbFind({"items.status": "none"});
-//            })
-//            .then(function (feedsWithFiles) {
-//                return _.chain(feedsWithFiles)
-//                         .map(function (feed) {
-//                            var items = _.where(feed.items, {status: "none"});
-//                            return _.map(items, function (item) {
-//                               return {feed: feed, file: item}; 
-//                            });
-//                         })
-//                         .toArray()
-//                         .flatten()
-//                         .value();
-//            })
-//            .then(function (feedFiles) {
-//               return _.chain(feedFiles)
-//                        .filter(function (feedFile) {
-//                            return feedFile.status != 'done'
-//                        })
-//                        .map(function (feedFile) {
-//                           return makeFileTask(feedFile, db, config);
-//                        })
-//                        .value();
-//            })
-//            .then(function (fileTasks) {
-//                return async.parallelLimit(fileTasks,config.maxCurrency);
-//            })
-//            .then(function (items) {
-//                console.log(items);
-//                console.log('done');    
-//            })
-//            .catch(function (reason) {
-//                console.log("fail: " + reason);       
-//            });
+                    if (!feed.folder) {
+                        feed.folder = path.join(config.storageDirectory, feed.title);
+                    }
+
+                    _.each(parsedFeed.articles, function (article) {
+                        var feedItem = createFeedItem(article);
+                        if (!itemExists(feedItem, feed)) {
+                            feed.items.push(feedItem);
+                        }
+                    });
+                    db.update({_id: feed._id}, feed);
+                });
+
+                var folderTasks = _.map(feeds, function(feed) { return makeDirectoryTask(feed); });
+                var folders = yield folderTasks;
+
+                var feedsWithFiles = yield dbFind({"items.status": "none"});
+                var fileTasks = _.chain(feedsWithFiles)
+                                 .map(function (feed) {
+                                    var items = _.where(feed.items, {status: "none"});
+                                    return _.map(items, function (item) {
+                                       return {feed: feed, file: item}; 
+                                    });
+                                 })
+                                 .toArray()
+                                 .flatten()
+                                 .map(function (feedFile) { return makeFileTask(feedFile, db, config); })
+                                 .value();
+
+                var files = yield fileTasks;
+                console.log(files);
+            })
+            .then(function() {
+                console.log('done');
+            })
+            .catch(function(err) {
+                console.error(err);
+            });
         });
 };
 
@@ -102,92 +72,37 @@ function makeFeedTask (feed, config) {
         feed.description = parsedFeed.description;
         console.log('===== %s =====', parsedFeed.title);
 
-        return parsedFeed;
-//        for (var i = 0; i < parsedFeed.articles.length; i++) {
-//            var item = parsedFeed.articles[i];
-//            var feedItem = createFeedItem(item);
-//            if (!itemExists(feedItem, feed)) {
-//                feed.items.push(feedItem);
-//            }
-//        }
+        return {feed: feed, parsedFeed: parsedFeed};
     };
 }
-//    return function () {
-//        var deferred = Q.defer();
-//
-//        request(feed.url)
-//        .pipe(new FeedParser())
-//        .on('error', function (error) {
-//            console.error(error);
-//            deferred.resolve();
-//        })
-//        .on('meta', function (meta) {
-//            feed.title = meta.title;
-//            feed.description = meta.description;
-//            console.log('===== %s =====', meta.title);
-//        })
-//        .on('readable', function () {
-//            var stream = this, 
-//                item;
-//            while (item = stream.read()) {
-//                for (var i = 0; i < item.enclosures.length; i++) {
-//                    var feedItem = createFeedItem(item);
-//
-//                    if (!itemExists(feedItem, feed))
-//                        feed.items.push(feedItem);
-//                }
-//            }
-//        })
-//        .on('end', function() {
-//            deferred.resolve(feed);
-//        });
-//
-//        return deferred.promise;
-//    };
 
-//function makeFileTask(item, db, config) {
-//    return function() {
-//        var deferred = Q.defer();
-//
-//        var url = urlParser.parse(item.file.files[0]);
-//        var fileName = url.pathname.split('/').pop();
-//
-//        request(urlParser.format(url))
-//        .on('response', function() { console.log('downloading ' + url.href); })
-//        .on('end', function() { 
-//            item.file.status = 'done';
-//            deferred.resolve(item); 
-//        })
-//        .pipe(fs.createWriteStream(path.join(item.feed.folder, fileName)));
-//
-//        return deferred.promise;
-//    };
-//}
-//
-//function makeDirectoryTask(feed) {
-//    return function() {
-//        var deferred = Q.defer();
-//
-//        fs.readdir(feed.folder, function (err, files) {
-//            if (err) {
-//                fs.mkdir(feed.folder, function (err) {
-//                    if (err) {
-//                        console.log(err)
-//                        deferred.reject(err);
-//                    }
-//                    else {
-//                        deferred.resolve(feed);
-//                    }
-//                })
-//            }
-//            else {
-//                deferred.resolve(feed);
-//            }
-//        });
-//
-//        return deferred.promise;
-//    };
-//}
+function makeFileTask(item, db, config) {
+    return new Promise(function(resolve) {
+
+        var url = urlParser.parse(item.file.files[0]);
+        var fileName = url.pathname.split('/').pop();
+
+        request(urlParser.format(url))
+        .on('response', function() { console.log('downloading ' + url.href); })
+        .on('end', function() { 
+            item.file.status = 'done';
+            resolve(item); 
+        })
+        .pipe(fs.createWriteStream(path.join(item.feed.folder, fileName)));
+    });
+}
+
+function makeDirectoryTask(feed) {
+    return function * () {
+        try {
+            yield fs.readdir(feed.folder);
+        }
+        catch (err) {
+            yield fs.mkdir(feed.folder);
+        }
+        return feed.folder;
+    };
+}
 
 function createFeedItem(item) {
     var feedItem = {};
@@ -209,6 +124,12 @@ function itemExists(feedItem, feed) {
         return (feedItem.files.length == 0) 
                 || (item.files != null && item.files.length > 0 && feedItem.files[0] == item.files[0]);
     });
+}
+
+function pipeRequest(readable, requestThunk){
+    return function(cb){
+        readable.pipe(requestThunk(cb));
+    }
 }
 
 exports.configureCommand = configureFunction;
