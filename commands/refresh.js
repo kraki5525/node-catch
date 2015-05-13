@@ -54,7 +54,18 @@ var configureFunction = function (program, db, config) {
                                  .value();
 
                 var files = yield fileTasks;
-                console.log(files);
+                _.each(files, function(file) {
+                    var feed = _.find(feeds, function (f) { return file.feed._id === f._id; });
+                    console.log(feed.items);
+                    console.log(file.file);
+                    if (feed) {
+                        var item = _.find(feed.items, function (i) { return file.file.id === i.id; });
+                        item.status = file.file.status;
+                    }
+                });
+                _.each(feeds, function (feed) {
+                    db.update({_id: feed._id}, feed);
+                });
             })
             .then(function() {
                 console.log('done');
@@ -111,6 +122,7 @@ function createFeedItem(item) {
     feedItem.description = item.description;
     feedItem.date = item.date;
     feedItem.status = "none";
+    feedItem.id = Date.now();
     feedItem.files = _.chain(item.enclosures)
                     .map(function(enclosure) { return enclosure.url; })
                     .toArray()
