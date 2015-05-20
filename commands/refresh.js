@@ -2,8 +2,8 @@ var _ = require('lodash'),
     co = require('co'),
     Promise = require('bluebird'),
     fs = require('mz/fs'),
-    feedParser = require('co-feedparser');
-
+    feedParser = require('co-feedparser'),
+    inquirer = require('inquirer'),
     request = require('request'),
     path = require('path'),
     urlParser = require('url');
@@ -12,8 +12,10 @@ var configureFunction = function (program, db, config) {
     program
         .command('refresh')
         .description('Download new podcasts.')
-        .action(function () {
+        .option("-p, --prompt", "Prompt about podcasts to download.")
+        .action(function (options) {
             var dbFind = Promise.promisify(db.find, db);
+            var prompt = options.prompt || false;
 
             co(function * () {
                 var feeds = yield dbFind({});
@@ -41,7 +43,7 @@ var configureFunction = function (program, db, config) {
                 var folders = yield folderTasks;
 
                 var feedsWithFiles = yield dbFind({"items.status": "none"});
-                var fileTasks = _.chain(feedsWithFiles)
+                feedsWithFiles = _.chain(feedsWithFiles)
                                  .map(function (feed) {
                                     var items = _.where(feed.items, {status: "none"});
                                     return _.map(items, function (item) {
@@ -50,14 +52,22 @@ var configureFunction = function (program, db, config) {
                                  })
                                  .toArray()
                                  .flatten()
+                                 .value();
+
+                if (feedsWithFiles.length == 0)
+                    return;
+
+                if (prompt) {
+                    feedWithFiles = yield promptForFiles(feedsWithFiles);
+                }
+
+                var fileTasks = _.chain(feedWithFiles)
                                  .map(function (feedFile) { return makeFileTask(feedFile, db, config); })
                                  .value();
 
                 var files = yield fileTasks;
                 _.each(files, function(file) {
                     var feed = _.find(feeds, function (f) { return file.feed._id === f._id; });
-                    console.log(feed.items);
-                    console.log(file.file);
                     if (feed) {
                         var item = _.find(feed.items, function (i) { return file.file.id === i.id; });
                         item.status = file.file.status;
@@ -75,6 +85,24 @@ var configureFunction = function (program, db, config) {
             });
         });
 };
+
+function promptForFiles(feedsWithFiles) {
+    return new Promise(function(resolve) {
+        inquirer.prompt({
+                type: 'checkbox',
+                message: 'select episodes to download',
+                name: 'episodes',
+                choices: _.map(feedsWithFiles, function (file) { return {name: file.file.title, value: file.file.id}; })
+            },
+            function(answers) {
+                var acceptedFiles = _.filter(feedsWithFiles, function (file) {
+                    return _.includes(answers, file.file.id);
+                });
+                resolve(acceptedFiles);
+            }
+        );
+    });
+}
 
 function makeFeedTask (feed, config) {
     return function * () {
