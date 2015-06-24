@@ -42,7 +42,7 @@ var configureFunction = function (program, db, config) {
                 var folderTasks = _.map(feeds, function(feed) { return makeDirectoryTask(feed); });
                 var folders = yield folderTasks;
 
-                var feedsWithFiles = yield dbFind({"items.status": "none"});
+                var feedsWithFiles = yield dbFind({"items.files.status": "none"});
                 feedsWithFiles = _.chain(feedsWithFiles)
                                  .map(function (feed) {
                                     var items = _.where(feed.items, {status: "none"});
@@ -58,10 +58,10 @@ var configureFunction = function (program, db, config) {
                     return;
 
                 if (prompt) {
-                    feedWithFiles = yield promptForFiles(feedsWithFiles);
+                    feedsWithFiles = yield promptForFiles(feedsWithFiles);
                 }
 
-                var fileTasks = _.chain(feedWithFiles)
+                var fileTasks = _.chain(feedsWithFiles)
                                  .map(function (feedFile) { return makeFileTask(feedFile, db, config); })
                                  .value();
 
@@ -92,11 +92,16 @@ function promptForFiles(feedsWithFiles) {
                 type: 'checkbox',
                 message: 'select episodes to download',
                 name: 'episodes',
-                choices: _.map(feedsWithFiles, function (file) { return {name: file.file.title, value: file.file.id}; })
+                choices: _.map(feedsWithFiles, function (file) { 
+                    return {
+                        name: file.file.title + file.file.description, 
+                        value: file.file.id
+                    }; 
+                })
             },
             function(answers) {
                 var acceptedFiles = _.filter(feedsWithFiles, function (file) {
-                    return _.includes(answers, file.file.id);
+                    return _.includes(answers.episodes, file.file.id);
                 });
                 resolve(acceptedFiles);
             }
@@ -118,16 +123,20 @@ function makeFeedTask (feed, config) {
 function makeFileTask(item, db, config) {
     return new Promise(function(resolve) {
 
-        var url = urlParser.parse(item.file.files[0]);
+        var url = urlParser.parse(item.file.files[0].url);
         var fileName = url.pathname.split('/').pop();
 
-        request(urlParser.format(url))
-        .on('response', function() { console.log('downloading ' + url.href); })
-        .on('end', function() { 
-            item.file.status = 'done';
-            resolve(item); 
-        })
-        .pipe(fs.createWriteStream(path.join(item.feed.folder, fileName)));
+        console.log(item.file);
+        item.file.files[0].filename = fileName;
+        console.log('downloading ' + url.href);
+        setTimeout(function() {resolve(item);}, 500);
+//        request(urlParser.format(url))
+//        .on('response', function() { console.log('downloading ' + url.href); })
+//        .on('end', function() { 
+//            item.file.status = 'done';
+//            resolve(item); 
+//        })
+//        .pipe(fs.createWriteStream(path.join(item.feed.folder, fileName)));
     });
 }
 
@@ -149,10 +158,9 @@ function createFeedItem(item) {
     feedItem.title = item.title;
     feedItem.description = item.description;
     feedItem.date = item.date;
-    feedItem.status = "none";
     feedItem.id = Date.now();
     feedItem.files = _.chain(item.enclosures)
-                    .map(function(enclosure) { return enclosure.url; })
+                    .map(function(enclosure) { return {url: enclosure.url, status: 'none', location: ''}; })
                     .toArray()
                     .value();
 
