@@ -12,7 +12,7 @@ var configDb = new Datastore({
 
 var configFind = Promise.promisify(configDb.find, configDb);
 
-var commandList = ['list','remove','refresh','add'];
+var commandList = ['list','remove','refresh','add','sync'];
 
 co(function * () {
     var configs = yield configFind({});
