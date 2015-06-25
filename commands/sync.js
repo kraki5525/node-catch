@@ -17,19 +17,28 @@ var configureFunction = function (program, db, config) {
             var prompt = options.prompt || false;
 
             co(function * () {
-                var feedsWithFiles = yield dbFind({"items.status": "done"});
+                var feedsWithFiles = yield dbFind({"items.files.status": "done"});
                 feedsWithFiles = _.chain(feedsWithFiles)
                                  .map(function (feed) {
-                                    var items = _.where(feed.items, {status: "done"});
-                                    return _.map(items, function (item) {
-                                       return {feed: feed, file: item}; 
+                                    var items = _.filter(feed.items, function(item) {
+                                        return _.where(item.files, {status: "done"});
                                     });
+                                    return _.map(items, function (item) {
+                                       return {
+                                           feed: feed, 
+                                           item: {
+                                               title: item.title,
+                                               date: item.date,
+                                               files: _.where(item.files, {status: 'done'})
+                                           } 
+                                       };
+                                    })
                                  })
                                  .toArray()
                                  .flatten()
                                  .value();
 
-                console.log(feedsWithFiles[0].file);
+                console.log(feedsWithFiles);
                 //var files = _.map(feedsWithFiles, function  
 
             });
