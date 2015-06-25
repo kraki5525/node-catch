@@ -73,7 +73,7 @@ var configureFunction = function (program, db, config) {
                     var feed = _.find(feeds, function (f) { return file.feed._id === f._id; });
                     if (feed) {
                         var item = _.find(feed.items, function (i) { return file.file.id === i.id; });
-                        item.status = file.file.status;
+                        item.files = file.file.files;
                     }
                 });
                 _.each(feeds, function (feed) {
@@ -131,7 +131,10 @@ function makeFileTask(item, db, config) {
 
         item.file.files[0].filename = fileName;
         console.log('downloading ' + url.href);
-        setTimeout(function() {resolve(item);}, 500);
+        setTimeout(function() { 
+            item.file.files[0].status = 'done'; 
+            resolve(item);
+        }, 500);
 //        request(urlParser.format(url))
 //        .on('response', function() { console.log('downloading ' + url.href); })
 //        .on('end', function() { 
@@ -162,7 +165,7 @@ function createFeedItem(item) {
     feedItem.date = item.date;
     feedItem.id = Date.now();
     feedItem.files = _.chain(item.enclosures)
-                    .map(function(enclosure) { return {url: enclosure.url, status: 'none', location: ''}; })
+                    .map(function(enclosure) { return {url: enclosure.url, status: 'none', location: '', type: enclosure.type, length: enclosure.length}; })
                     .toArray()
                     .value();
 
@@ -172,7 +175,7 @@ function createFeedItem(item) {
 function itemExists(feedItem, feed) {
     return _.some(feed.items, function(item) {
         return (feedItem.files.length == 0) 
-                || (item.files != null && item.files.length > 0 && feedItem.files[0] == item.files[0]);
+                || (item.files != null && item.files.length > 0 && feedItem.files[0].url == item.files[0].url);
     });
 }
 
