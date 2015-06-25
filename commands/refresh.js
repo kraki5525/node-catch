@@ -45,7 +45,9 @@ var configureFunction = function (program, db, config) {
                 var feedsWithFiles = yield dbFind({"items.files.status": "none"});
                 feedsWithFiles = _.chain(feedsWithFiles)
                                  .map(function (feed) {
-                                    var items = _.where(feed.items, {status: "none"});
+                                    var items = _.filter(feed.items, function(item) {
+                                        return _.where(item.files, {status: "none"});
+                                    });
                                     return _.map(items, function (item) {
                                        return {feed: feed, file: item}; 
                                     });
@@ -53,6 +55,7 @@ var configureFunction = function (program, db, config) {
                                  .toArray()
                                  .flatten()
                                  .value();
+
 
                 if (feedsWithFiles.length == 0)
                     return;
@@ -126,7 +129,6 @@ function makeFileTask(item, db, config) {
         var url = urlParser.parse(item.file.files[0].url);
         var fileName = url.pathname.split('/').pop();
 
-        console.log(item.file);
         item.file.files[0].filename = fileName;
         console.log('downloading ' + url.href);
         setTimeout(function() {resolve(item);}, 500);
